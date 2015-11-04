@@ -1,8 +1,8 @@
 #!/usr/bin/env python
+import sys
 import numpy as np
 import cv2
-from multiprocessing import Pool
-from functools import partial
+from ipwebcam  import WifiCapturer
 
 DATADIR = "/usr/local/opt/opencv/share/OpenCV/haarcascades/"
 MODELS = [
@@ -40,7 +40,6 @@ class FaceExtractor(object):
         self.exclusion_overlap = exclusion_overlap
         self.faces_known = []
         self.forgetting_time = 3
-        self.workers = Pool(len(self.face_detectors))
 
         
     def _store_face(self, img, face):
@@ -80,7 +79,11 @@ class FaceExtractor(object):
     # TODO: similares
 class App(object):
     def __init__(self, source, model, epoch_size):
-        self.cap = cv2.VideoCapture(source)
+        if type(source) == type(0):
+            self.cap = cv2.VideoCapture(source)
+        elif type(source) == type(""):
+            if "." in source and ":" in source:
+                self.cap = WifiCapturer(source)
         self.d   = FaceExtractor(model, exclusion_overlap = 0.8)
         self.epoch_size = epoch_size
         
@@ -90,8 +93,9 @@ class App(object):
             while True:
                 # Capture frame-by-frame
                 ret, img = self.cap.read()
+                if not ret:
+                    break
 
-                
                 if i % self.epoch_size == 0:
                     faces = self.d.scan(img)
                 i += 1
@@ -110,5 +114,10 @@ class App(object):
 
 
 if __name__ == '__main__':
+    if len(sys.argv)>1:
+        source = sys.argv[1]
+    else:
+        source = 0
+    
     models = (DATADIR + model for model in MODELS)
-    App(0, models, EPOCH_SIZE).run()
+    App(source, models, EPOCH_SIZE).run()
