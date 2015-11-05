@@ -5,19 +5,15 @@ import cv2
 from ipwebcam  import WifiCapturer
 
 DATADIR = "/usr/local/opt/opencv/share/OpenCV/haarcascades/"
-MODELS = [
-    "haarcascade_frontalface_alt2.xml",
-    "haarcascade_profileface.xml",
-    "haarcascade_frontalface_default.xml",
-]
 
 # IMAGE_SCALE = 1.2
 HAAR_SCALE = 1.2  # 1.2
 MIN_NEIGHBORS = 4 # 2
 HAAR_FLAGS = 0 # cv2.CASCADE_DO_CANNY_PRUNING
 EPOCH_SIZE = 30
-# - reescalonar
-# - 13 x 10
+
+## NOTAS:
+## - Ainda nao testei o body_extractor, 
 
 def rect_overlap(a, b):
     ax,ay,aw,ah = a
@@ -26,7 +22,8 @@ def rect_overlap(a, b):
     dx = min(ax+aw, bx+bw) - max(ax,bx)
     dy = min(ay+ah, by+bh) - max(ay,by)
 
-    if (dx < 0) and (dy < 0):
+    if (dx < 0) or (dy < 0):
+        print "Overlap: 0"
         return 0
     i = dx*dy
     overlap = i / float(aw*ah + bw*bh - i)
@@ -34,41 +31,46 @@ def rect_overlap(a, b):
     return overlap
 
     
-class FaceExtractor(object):
-    def __init__(self, model_files, exclusion_overlap = 1):
-        self.face_detectors = [cv2.CascadeClassifier(model_file)
+class EntityExtractor(object):
+    def __init__(self, name, model_files, exclusion_overlap = 1, forget = 3):
+
+        self.entity_detectors = [cv2.CascadeClassifier(model_file)
                                for model_file in model_files]
-        self.epoch  = 0
-        self.nfaces = 0
+
         self.exclusion_overlap = exclusion_overlap
-        self.faces_known = []
-        self.forgetting_time = 3
+        self.entity_name       = name
+        self.forgetting_time   = forget
+
+        self.entities_known = []
+        self.epoch     = 0
+        self.nentities = 0
+
 
     def naming_policy(self):
-        path = "faces/%.3d.jpg" % (self.nfaces % 1000)
-        self.nfaces += 1
+        path = "entities/%s-%.3d.jpg" % (self.name, self.nentities % 1000)
+        self.nentities += 1
         return path
         
-    def _store_face(self, img, face):
-        x,y,w,h = face
+    def _store_entity(self, img, entity):
+        x,y,w,h = entity
         region = img[y:y+h,x:x+w]
         path   = self.naming_policy()
         cv2.imwrite(path,region,[cv2.IMWRITE_JPEG_QUALITY,100])
-        self.last_seen_face = face
+        self.last_seen_entity = entity
         print "Written", path 
 
         
-    def _must_be_stored(self, face):
-        self.faces_known = filter(
+    def _must_be_stored(self, entity):
+        self.entities_known = filter(
             lambda x: self.epoch - x[1] < self.forgetting_time,
-            self.faces_known
+            self.entities_known
         )
         is_new = all(
-            rect_overlap(face, other_face) < self.exclusion_overlap
-            for other_face, epoch in self.faces_known
+            rect_overlap(entity, other_entity) < self.exclusion_overlap
+            for other_entity, epoch in self.entities_known
         )
         if is_new:
-            self.faces_known.append((face,self.epoch))
+            self.entities_known.append((entity,self.epoch))
             return True
         return False
 
@@ -76,29 +78,36 @@ class FaceExtractor(object):
     def scan(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
-        face_lists = [d.detectMultiScale(gray, 2, 4)
-                      for d in self.face_detectors]
-        for faces in face_lists:
-            if len(faces) > 0:
-                for face in faces:
-                    if self._must_be_stored(face):
-                        self._store_face(img, face)
+        entity_lists = [list(d.detectMultiScale(gray, 2, 4))
+                      for d in self.entity_detectors]
+
+        entities = sum(entity_lists,[])
+
+        if len(entities) > 0:
+            for entity in entities:
+                if self._must_be_stored(entity):
+                    self._store_entity(img, entity)
 
         self.epoch +=1
-        return faces
+        return entities
 
 
-    # TODO: similares
+
 class App(object):
-    def __init__(self, source, model, epoch_size):
+    def __init__(self, source, detectors, epoch_size):
+
         if type(source) == type(0):
             self.cap = cv2.VideoCapture(source)
         elif type(source) == type(""):
             if "." in source and ":" in source:
                 self.cap = WifiCapturer(source)
-        self.d   = FaceExtractor(model, exclusion_overlap = 0.8)
-        self.epoch_size = epoch_size
 
+        self.detectors = detectors
+        
+        self.epoch_size = epoch_size
+        
+        self.colors = [(255,0,0), (0,255,0)] # gambiarra, consertar depois
+    
     def run(self, source = 0):
         i = 0
         try:
@@ -107,18 +116,19 @@ class App(object):
                 ret, img = self.cap.read()
                 if not ret:
                     break
-                
+
                 if i % self.epoch_size == 0:
-                    faces = self.d.scan(img)
-                i += 1
+                    entities = [d.scan(img) for d in self.detectors]
 
-                for x,y,w,h in faces:
-                    cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
-
-                # Display the resulting frame
+                for ent_type, color in zip(entities, self.colors):
+                    for x,y,w,h in ent_type:
+                        cv2.rectangle(img, (x,y), (x+w,y+h), color,2)
                 cv2.imshow('frame',img)
+                
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
+                
+                i += 1
         finally:
             # When everything done, release the capture
             self.cap.release()
@@ -130,6 +140,16 @@ if __name__ == '__main__':
         source = sys.argv[1]
     else:
         source = 0
+
+    face_models = (DATADIR + model for model in
+                   ["haarcascade_profileface.xml",
+                    "haarcascade_frontalface_default.xml"])
+    face_extractor = EntityExtractor("face", face_models,
+                                     exclusion_overlap = 0.8)
+
+    body_models = (DATADIR + model for model in
+                   ["haarcascade_fullbody.xml"])
+    body_extractor = EntityExtractor("body", body_models,
+                                     exclusion_overlap = 0.8)
     
-    models = (DATADIR + model for model in MODELS)
-    App(source, models, EPOCH_SIZE).run()
+    App(source, [face_extractor, body_extractor], EPOCH_SIZE).run()
