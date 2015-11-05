@@ -12,10 +12,12 @@ MODELS = [
 ]
 
 # IMAGE_SCALE = 1.2
-HAAR_SCALE = 2  # 1.2
-MIN_NEIGHBORS = 5 # 2
+HAAR_SCALE = 1.2  # 1.2
+MIN_NEIGHBORS = 4 # 2
 HAAR_FLAGS = 0 # cv2.CASCADE_DO_CANNY_PRUNING
 EPOCH_SIZE = 30
+# - reescalonar
+# - 13 x 10
 
 def rect_overlap(a, b):
     ax,ay,aw,ah = a
@@ -34,28 +36,37 @@ def rect_overlap(a, b):
     
 class FaceExtractor(object):
     def __init__(self, model_files, exclusion_overlap = 1):
-        self.face_detectors = [cv2.CascadeClassifier(model_file) for model_file in model_files]
+        self.face_detectors = [cv2.CascadeClassifier(model_file)
+                               for model_file in model_files]
         self.epoch  = 0
         self.nfaces = 0
         self.exclusion_overlap = exclusion_overlap
         self.faces_known = []
         self.forgetting_time = 3
 
+    def naming_policy(self):
+        path = "faces/%.3d.jpg" % (self.nfaces % 1000)
+        self.nfaces += 1
+        return path
         
     def _store_face(self, img, face):
-        self.nfaces += 1
         x,y,w,h = face
         region = img[y:y+h,x:x+w]
-        path   = "faces/%.4d.jpg" % self.nfaces
-        cv2.imwrite(path,region)
+        path   = self.naming_policy()
+        cv2.imwrite(path,region,[cv2.IMWRITE_JPEG_QUALITY,100])
         self.last_seen_face = face
-        print "Writen", path 
+        print "Written", path 
 
         
     def _must_be_stored(self, face):
-        self.faces_known = filter(lambda x: self.epoch - x[1] < self.forgetting_time, self.faces_known)
-        is_new = all(rect_overlap(face, other_face) < self.exclusion_overlap
-                     for other_face, epoch in self.faces_known)
+        self.faces_known = filter(
+            lambda x: self.epoch - x[1] < self.forgetting_time,
+            self.faces_known
+        )
+        is_new = all(
+            rect_overlap(face, other_face) < self.exclusion_overlap
+            for other_face, epoch in self.faces_known
+        )
         if is_new:
             self.faces_known.append((face,self.epoch))
             return True
@@ -65,7 +76,8 @@ class FaceExtractor(object):
     def scan(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
-        face_lists = [d.detectMultiScale(gray, 2, 4) for d in self.face_detectors]
+        face_lists = [d.detectMultiScale(gray, 2, 4)
+                      for d in self.face_detectors]
         for faces in face_lists:
             if len(faces) > 0:
                 for face in faces:
@@ -86,7 +98,7 @@ class App(object):
                 self.cap = WifiCapturer(source)
         self.d   = FaceExtractor(model, exclusion_overlap = 0.8)
         self.epoch_size = epoch_size
-        
+
     def run(self, source = 0):
         i = 0
         try:
@@ -95,7 +107,7 @@ class App(object):
                 ret, img = self.cap.read()
                 if not ret:
                     break
-
+                
                 if i % self.epoch_size == 0:
                     faces = self.d.scan(img)
                 i += 1
