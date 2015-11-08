@@ -37,6 +37,8 @@ class EntityExtractor(object):
         self.entity_detectors = [cv2.CascadeClassifier(model_file)
                                for model_file in model_files]
 
+        self.bg = cv2.BackgroundSubtractorMOG2()
+
         self.exclusion_overlap = exclusion_overlap
         self.entity_name       = name
         self.forgetting_time   = forget
@@ -51,12 +53,16 @@ class EntityExtractor(object):
         self.nentities += 1
         return path
         
-    def _store_entity(self, img, entity):
+    def _store_entity(self, entity):
         x,y,w,h = entity
-        region = img[y:y+h,x:x+w]
         path   = self.naming_policy()
+
+        region = self.img[y:y+h,x:x+w]
+        region_mask = self.mask[y:y+h,x:x+w]
+        print region.shape, region_mask.shape
+        region &= region_mask.reshape(h,w,1)
+        
         cv2.imwrite(path,region,[cv2.IMWRITE_JPEG_QUALITY,100])
-        self.last_seen_entity = entity
         print "Written", path 
 
         
@@ -84,9 +90,11 @@ class EntityExtractor(object):
         entities = sum(entity_lists,[])
 
         if len(entities) > 0:
+            self.img  = img
+            self.mask = self.bg.apply(img)
             for entity in entities:
                 if self._must_be_stored(entity):
-                    self._store_entity(img, entity)
+                    self._store_entity(entity)
 
         self.epoch +=1
         return entities
@@ -103,7 +111,7 @@ class App(object):
                 self.cap = WifiCapturer(source)
 
         self.detectors = detectors
-        
+ 
         self.epoch_size = epoch_size
         
         self.colors = [(255,0,0), (0,255,0)] # gambiarra, consertar depois
@@ -117,9 +125,12 @@ class App(object):
                 if not ret:
                     break
 
+            
                 if i % self.epoch_size == 0:
                     entities = [d.scan(img) for d in self.detectors]
+                
 
+                    
                 for ent_type, color in zip(entities, self.colors):
                     for x,y,w,h in ent_type:
                         cv2.rectangle(img, (x,y), (x+w,y+h), color,2)
@@ -127,7 +138,7 @@ class App(object):
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-                
+                sys.stdout.flush() ## avoid holding the print 
                 i += 1
         finally:
             # When everything done, release the capture

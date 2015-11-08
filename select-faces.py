@@ -31,19 +31,22 @@ bg_buffer = 0
 bg_image = cv2.imread(BACKGROUND_FILE)
 if bg_image is None:
     bg_image = np.zeros((BG_HEIGHT,BG_WIDTH,3), np.uint8)
+
 for line in sys.stdin:
+    line = line.strip()
+    print line
     if "Written" not in line:
         continue
-    __, path = line.strip().split()
+    __, path = line.split()
     img = cv2.imread(path)
     if img is None:
         print "could not read image", path
         continue
     if special_faces < SPECIAL_FACE_BUFFER_SIZE:
-        newpath = "special/%d.jpg" % special_faces
-        write(img,newpath)
         special_faces +=1
         special_buffer +=1
+        newpath = "special/%d.jpg" % special_faces
+        write(img,newpath)
         print "sent {} to {}".format(path, newpath)
     else:
         w_offset, w_limit, w_crop = set_segment(img.shape[1], BG_WIDTH)
