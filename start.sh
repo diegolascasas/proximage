@@ -1,1 +1,2 @@
-./capture-detect.py| ./select-faces.py
+#!/bin/bash
+./capture-detect.py | ./select-faces.py
