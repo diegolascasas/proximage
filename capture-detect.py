@@ -59,10 +59,11 @@ class EntityExtractor(object):
 
         region = self.img[y:y+h,x:x+w]
         region_mask = self.mask[y:y+h,x:x+w]
-        print region.shape, region_mask.shape
-        region &= region_mask.reshape(h,w,1)
+        # print region.shape, region_mask.shape
+        # region &= region_mask.reshape(h,w,1)
         
         cv2.imwrite(path,region,[cv2.IMWRITE_JPEG_QUALITY,100])
+        cv2.imwrite(path + '.mask.jpg',region_mask)
         print "Written", path 
 
         
