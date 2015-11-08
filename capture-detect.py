@@ -47,7 +47,7 @@ class EntityExtractor(object):
 
 
     def naming_policy(self):
-        path = "entities/%s-%.3d.jpg" % (self.name, self.nentities % 1000)
+        path = "entities/%s-%d.jpg" % (self.entity_name, self.nentities)
         self.nentities += 1
         return path
         
