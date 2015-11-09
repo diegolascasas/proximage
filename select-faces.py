@@ -6,27 +6,29 @@ import random
 import glob
 import OSC
 
-SPECIAL_FACE_BUFFER_SIZE = 2
 SPECIAL_FACE_DIR = "special"
+SPECIAL_FACE_BUFFER_SIZE = 13
 
-BG_FACE_BUFFER_SIZE = 2
-BG_SCALE  = 100
+BG_IMAGE_SCALE = 0.5
+BG_SCALE  = 40
+BG_FACE_BUFFER_SIZE = 10
 BG_WIDTH  = 20 * BG_SCALE
 BG_HEIGHT =  7 * BG_SCALE
 BACKGROUND_FILE = "special/background-%d.jpg"
 
+# TODO: aumentar ou diminuir a imagem
+
 def set_segment(img_size, max_value):
     offset = random.randrange(max_value)
     limit  = offset + img_size
-    crop = img_size
+    crop   = img_size
     if limit > max_value:
-        limit = max_value #(limit - max_value)
+        limit = max_value 
         crop  = limit - offset
     return offset, limit, crop
 
 def write(image, path):
     cv2.imwrite(path,image)
-
 
 def send_message(msg):
     oscmsg = OSC.OSCMessage()
@@ -48,11 +50,12 @@ special_images = len(glob.glob('special/*.jpg'))
 osc = OSC.OSCClient()
 osc.connect(('127.0.0.1', 8001))
 
-while True:
-    line  = sys.stdin.readline()
-
+for line in iter(sys.stdin.readline, ''):
     ## Parse output, look for selected lines
     line = line.strip()
+    if "dropped frame" in line:
+        continue
+
     print line
     if "Written" not in line:
         continue
@@ -82,6 +85,11 @@ while True:
         mask = cv2.imread(path + ".mask.jpg")
         __, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
         img &= mask
+
+        ## resize image
+        h = int(h * BG_IMAGE_SCALE)
+        w = int(w * BG_IMAGE_SCALE)
+        img = cv2.resize(img, (h,w), interpolation = cv2.INTER_AREA)
 
         ## find a random place to put the image in the background
         h_offset, h_limit, h_crop = set_segment(h, BG_HEIGHT)
