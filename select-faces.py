@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import random
 import glob
+import OSC
 
 SPECIAL_FACE_BUFFER_SIZE = 2
 SPECIAL_FACE_DIR = "special"
@@ -12,7 +13,7 @@ BG_FACE_BUFFER_SIZE = 2
 BG_SCALE  = 100
 BG_WIDTH  = 20 * BG_SCALE
 BG_HEIGHT =  7 * BG_SCALE
-BACKGROUND_FILE = "background.jpg"
+BACKGROUND_FILE = "special/background-%d.jpg"
 
 def set_segment(img_size, max_value):
     offset = random.randrange(max_value)
@@ -27,17 +28,25 @@ def write(image, path):
     cv2.imwrite(path,image)
 
 
+def send_message(msg):
+    oscmsg = OSC.OSCMessage()
+    oscmsg.setAddress("/detector")
+    oscmsg.append(msg)
+    osc.send(oscmsg)
 
 special_buffer = 0
 bg_buffer = 0
 
 ## use current bg-image or create a new one.
-bg_image = cv2.imread(BACKGROUND_FILE)
+bg_image = cv2.imread(BACKGROUND_FILE % (bg_buffer % 2))
 if bg_image is None:
     bg_image = np.zeros((BG_HEIGHT,BG_WIDTH,3), np.uint8)
 
 ## check the current number of "special images" in the directory
 special_images = len(glob.glob('special/*.jpg'))
+
+osc = OSC.OSCClient()
+osc.connect(('127.0.0.1', 8001))
 
 while True:
     line  = sys.stdin.readline()
@@ -60,11 +69,13 @@ while True:
         newpath = "special/%d.jpg" % (special_images + 1)
         write(img,newpath)
         print "sent {} to {}".format(path, newpath)
-
+        send_message(1)
         ## update state
         special_images +=1
         special_buffer +=1
-
+        ## Tell app if 13 new images were obtained
+        if special_images % 13 == 0:
+            send_message(1)
     else:
         ## apply mask
         h, w, __ = img.shape
@@ -81,7 +92,8 @@ while True:
         bg_image[h_offset:h_limit, w_offset:w_limit,:] = crop
 
         ## save image
-        write(bg_image,BACKGROUND_FILE)
+        write(bg_image,BACKGROUND_FILE % (bg_buffer % 2))
+        send_message(2)
         print "sent {} to background".format(path)
 
         ## update state
