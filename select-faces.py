@@ -1,20 +1,23 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import cv2
 import sys
 import numpy as np
 import random
 import glob
 import OSC
+from time import time
 
-SPECIAL_FACE_DIR = "special"
-SPECIAL_FACE_BUFFER_SIZE = 13
+SPECIAL_FACE_DIR = "special"   ## pasta onde as imagens vão ser salvas
+SPECIAL_FACE_BUFFER_SIZE = 13  ## numero de imagens "especiais" antes de comecar a jogar as imagens para o background
 
-BG_IMAGE_SCALE = 0.5
-BG_SCALE  = 40
-BG_FACE_BUFFER_SIZE = 10
-BG_WIDTH  = 20 * BG_SCALE
-BG_HEIGHT =  7 * BG_SCALE
-BACKGROUND_FILE = "special/background-%d.jpg"
+BG_TIME_THRESHOLD = 60         ## Tempo de espera antes de voltar a pegar imagens especiais
+BG_IMAGE_SCALE = 0.5           ## Escala em que as imagens coladas no fundo vao ser redimensionadas
+BG_SCALE  = 40                 ## Escala para gerar as dimensoes do fundo. Opcional, vc pode só definir as dimensoes nas duas variaveis abaixo.
+BG_WIDTH  = 20 * BG_SCALE      ## Largura do background
+BG_HEIGHT =  7 * BG_SCALE      ## Altura do background
+BG_FILE = "special/background-%d.jpg" ## Arquivo onde o background será salvo. %d permite que mais de um arquivo de background exista.
 
 # TODO: aumentar ou diminuir a imagem
 
@@ -36,11 +39,9 @@ def send_message(msg):
     oscmsg.append(msg)
     osc.send(oscmsg)
 
-special_buffer = 0
-bg_buffer = 0
-
 ## use current bg-image or create a new one.
-bg_image = cv2.imread(BACKGROUND_FILE % (bg_buffer % 2))
+bg_images = 0
+bg_image = cv2.imread(BG_FILE % 0)
 if bg_image is None:
     bg_image = np.zeros((BG_HEIGHT,BG_WIDTH,3), np.uint8)
 
@@ -49,6 +50,9 @@ special_images = len(glob.glob('special/*.jpg'))
 
 osc = OSC.OSCClient()
 osc.connect(('127.0.0.1', 8001))
+
+special_buffer = 0
+last_time_checked = time()
 
 for line in iter(sys.stdin.readline, ''):
     ## Parse output, look for selected lines
@@ -65,17 +69,17 @@ for line in iter(sys.stdin.readline, ''):
     img = cv2.imread(path)
     if img is None:
         print "could not read image", path
-        continue
+        continueqqq
     
     if special_buffer < SPECIAL_FACE_BUFFER_SIZE:
         ## Write image to directory
         newpath = "special/%d.jpg" % (special_images + 1)
         write(img,newpath)
         print "sent {} to {}".format(path, newpath)
-        send_message(1)
         ## update state
-        special_images +=1
-        special_buffer +=1
+        special_images += 1
+        special_buffer += 1
+        last_time_checked = time()
         ## Tell app if 13 new images were obtained
         if special_images % 13 == 0:
             send_message(1)
@@ -100,12 +104,12 @@ for line in iter(sys.stdin.readline, ''):
         bg_image[h_offset:h_limit, w_offset:w_limit,:] = crop
 
         ## save image
-        write(bg_image,BACKGROUND_FILE % (bg_buffer % 2))
+        write(bg_image,BG_FILE % (bg_images % 2))
         send_message(2)
         print "sent {} to background".format(path)
 
         ## update state
-        bg_buffer += 1
-        if bg_buffer > BG_FACE_BUFFER_SIZE:
-            bg_buffer = 0
+        bg_images += 1
+        ## Check whether to go back recording special images
+        if (time() - last_time_checked) > BG_TIME_THRESHOLD:
             special_buffer  = 0
