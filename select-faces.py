@@ -9,17 +9,28 @@ import glob
 import OSC
 from time import time
 
-SPECIAL_FACE_DIR = "special"   ## pasta onde as imagens vão ser salvas
-SPECIAL_FACE_BUFFER_SIZE = 13  ## numero de imagens "especiais" antes de comecar a jogar as imagens para o background
 
-BG_TIME_THRESHOLD = 60         ## Tempo de espera antes de voltar a pegar imagens especiais
-BG_IMAGE_SCALE = 0.5           ## Escala em que as imagens coladas no fundo vao ser redimensionadas
-BG_SCALE  = 40                 ## Escala para gerar as dimensoes do fundo. Opcional, vc pode só definir as dimensoes nas duas variaveis abaixo.
-BG_WIDTH  = 20 * BG_SCALE      ## Largura do background
-BG_HEIGHT =  7 * BG_SCALE      ## Altura do background
+
+##### PARAMETROS DAS IMAGENS PRINCIPAIS #####
+
+SPECIAL_FACE_DIR = "special"   ## pasta onde as imagens vão ser salvas
+SPECIAL_FACE_BUFFER_SIZE = 13  ## numero de imagens principais antes de comecar a jogar as imagens para o background
+
+SPECIAL_WIDTH  = 800  ## Largura das imagens principais
+SPECIAL_HEIGHT = 800  ## Altura das imgens principais
+
+
+
+##### PARAMETROS DO BACKGROUND #####
+
+BG_WIDTH  =  3780       ## Largura do background
+BG_HEIGHT =  1080       ## Altura do background
 BG_FILE = "special/background-%d.jpg" ## Arquivo onde o background será salvo. %d permite que mais de um arquivo de background exista.
 
-# TODO: aumentar ou diminuir a imagem
+BG_IMAGE_SCALE = 0.5    ## Escala em que as imagens coladas no fundo vao ser redimensionadas
+BG_TIME_THRESHOLD = 60  ## Tempo de espera antes de voltar a pegar imagens principais
+
+
 
 def set_segment(img_size, max_value):
     offset = random.randrange(max_value)
@@ -74,6 +85,8 @@ for line in iter(sys.stdin.readline, ''):
     if special_buffer < SPECIAL_FACE_BUFFER_SIZE:
         ## Write image to directory
         newpath = "special/%d.jpg" % (special_images + 1)
+        newsize = (SPECIAL_HEIGHT,SPECIAL_WIDTH)
+        img = cv2.resize(img, newsize, interpolation = cv2.INTER_AREA)
         write(img,newpath)
         print "sent {} to {}".format(path, newpath)
         ## update state
