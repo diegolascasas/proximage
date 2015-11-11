@@ -3,9 +3,11 @@ import sys
 import numpy as np
 import cv2
 from ipwebcam  import WifiCapturer
+from argparse import ArgumentParser
 
 DATADIR = "/usr/local/opt/opencv/share/OpenCV/haarcascades/"
 
+EXCLUSION_OVERLAP = 0.7
 # IMAGE_SCALE = 1.2
 HAAR_SCALE = 1.2  # 1.2
 MIN_NEIGHBORS = 4 # 2
@@ -103,7 +105,7 @@ class EntityExtractor(object):
 
 
 class App(object):
-    def __init__(self, source, detectors, epoch_size):
+    def __init__(self, source, detectors, epoch_size, display = False):
 
         if type(source) == type(0):
             self.cap = cv2.VideoCapture(source)
@@ -116,7 +118,10 @@ class App(object):
         self.epoch_size = epoch_size
         
         self.colors = [(255,0,0), (0,255,0)] # gambiarra, consertar depois
-    
+
+        self.display = display
+
+        
     def run(self, source = 0):
         i = 0
         try:
@@ -130,12 +135,11 @@ class App(object):
                 if i % self.epoch_size == 0:
                     entities = [d.scan(img) for d in self.detectors]
                 
-
-                    
-                for ent_type, color in zip(entities, self.colors):
-                    for x,y,w,h in ent_type:
-                        cv2.rectangle(img, (x,y), (x+w,y+h), color,2)
-                cv2.imshow('frame',img)
+                if self.display:
+                    for ent_type, color in zip(entities, self.colors):
+                        for x,y,w,h in ent_type:
+                            cv2.rectangle(img, (x,y), (x+w,y+h), color,2)
+                    cv2.imshow('frame',img)
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
@@ -148,20 +152,25 @@ class App(object):
 
 
 if __name__ == '__main__':
-    if len(sys.argv)>1:
-        source = sys.argv[1]
-    else:
-        source = 0
+
+    parser = ArgumentParser()
+    parser.add_argument('-s','--source',default=0,
+                        help='IP of the source if using ipcamera')
+    parser.add_argument('-d','--display',action='store_true',
+                        help='Whether to display the captured input')
+
+    args = parser.parse_args()
 
     face_models = (DATADIR + model for model in
                    ["haarcascade_profileface.xml",
                     "haarcascade_frontalface_default.xml"])
     face_extractor = EntityExtractor("face", face_models,
-                                     exclusion_overlap = 0.8)
+                                     exclusion_overlap = EXCLUSION_OVERLAP)
 
     body_models = (DATADIR + model for model in
                    ["haarcascade_fullbody.xml"])
     body_extractor = EntityExtractor("body", body_models,
-                                     exclusion_overlap = 0.8)
+                                     exclusion_overlap = EXCLUSION_OVERLAP)
     
-    App(source, [face_extractor, body_extractor], EPOCH_SIZE).run()
+    App(args.source, [face_extractor, body_extractor],
+        EPOCH_SIZE, args.display).run()
