@@ -27,7 +27,7 @@ BG_WIDTH  =  3780       ## Largura do background
 BG_HEIGHT =  1080       ## Altura do background
 BG_FILE = "special/background-%d.jpg" ## Arquivo onde o background será salvo. %d permite que mais de um arquivo de background exista.
 
-BG_IMAGE_SCALE = 0.5    ## Escala em que as imagens coladas no fundo vao ser redimensionadas
+BG_IMAGE_SCALE = 0.1    ## Escala em que as imagens coladas no fundo vao ser redimensionadas
 BG_TIME_THRESHOLD = 60  ## Tempo de espera antes de voltar a pegar imagens principais
 
 
