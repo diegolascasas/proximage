@@ -9,10 +9,20 @@ import glob
 import OSC
 from time import time
 
+##### PARAMETROS DE FILTRO #####
+MIN_FACE_WIDTH  = 100 ## largura minima para rosto
+MIN_FACE_HEIGHT = 100 ## tamanho minimo para rosto
+FILTER_EXCLUDE = False ## Determina se um rosto muito pequeno é excluido ou pode ir para o background
+
+
+##### PARAMETROS Da MASCARA #####
+APPLY_MASK = True ## Liga/DEsliga uso de mascaras
+RANDOM_MASKS_FACE = [] ## mascaras a serem aplicadas aleatoriamente ao rosto
+RANDOM_MASKS_BODY = [] ## mascaras a serem aplicadas aleatoriamente ao corpo
+## Nota: Se as listas de mascaras tiverem vazias, o programa usa o BG removal
 
 
 ##### PARAMETROS DAS IMAGENS PRINCIPAIS #####
-
 SPECIAL_FACE_DIR = "special"   ## pasta onde as imagens vão ser salvas
 SPECIAL_FACE_BUFFER_SIZE = 13  ## numero de imagens principais antes de comecar a jogar as imagens para o background
 
@@ -20,14 +30,12 @@ SPECIAL_WIDTH  = 800  ## Largura das imagens principais
 SPECIAL_HEIGHT = 800  ## Altura das imgens principais
 
 
-
 ##### PARAMETROS DO BACKGROUND #####
-
 BG_WIDTH  =  3780       ## Largura do background
 BG_HEIGHT =  1080       ## Altura do background
 BG_FILE = "special/background-%d.jpg" ## Arquivo onde o background será salvo. %d permite que mais de um arquivo de background exista.
 
-BG_IMAGE_SCALE = 0.1    ## Escala em que as imagens coladas no fundo vao ser redimensionadas
+BG_IMAGE_SCALE = 0.5    ## Escala em que as imagens coladas no fundo vao ser redimensionadas
 BG_TIME_THRESHOLD = 60  ## Tempo de espera antes de voltar a pegar imagens principais
 
 
@@ -55,7 +63,10 @@ bg_images = 0
 bg_image = cv2.imread(BG_FILE % 0)
 if bg_image is None:
     bg_image = np.zeros((BG_HEIGHT,BG_WIDTH,3), np.uint8)
-
+else:
+    bg_image = cv2.resize(bg_image, (BG_WIDTH,BG_HEIGHT),
+                          interpolation = cv2.INTER_AREA)
+    
 ## check the current number of "special images" in the directory
 special_images = len(glob.glob('special/*.jpg'))
 
@@ -74,21 +85,27 @@ for line in iter(sys.stdin.readline, ''):
     print line
     if "Written" not in line:
         continue
+
     __, path = line.split()
 
     ## Read image
     img = cv2.imread(path)
+    h, w, __ = img.shape
+
     if img is None:
         print "could not read image", path
-        continueqqq
+        continue
     
-    if special_buffer < SPECIAL_FACE_BUFFER_SIZE:
+    if (special_buffer < SPECIAL_FACE_BUFFER_SIZE and
+        "face" in path and
+        w >= MIN_FACE_WIDTH and h >= MIN_FACE_HEIGHT):
         ## Write image to directory
         newpath = "special/%d.jpg" % (special_images + 1)
-        newsize = (SPECIAL_HEIGHT,SPECIAL_WIDTH)
+        newsize = (SPECIAL_WIDTH,SPECIAL_HEIGHT)
         img = cv2.resize(img, newsize, interpolation = cv2.INTER_AREA)
         write(img,newpath)
         print "sent {} to {}".format(path, newpath)
+
         ## update state
         special_images += 1
         special_buffer += 1
@@ -97,16 +114,23 @@ for line in iter(sys.stdin.readline, ''):
         if special_images % 13 == 0:
             send_message(1)
     else:
-        ## apply mask
-        h, w, __ = img.shape
-        mask = cv2.imread(path + ".mask.jpg")
-        __, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-        img &= mask
+        if (FILTER_EXCLUDE and 
+            (w < MIN_FACE_WIDTH or h < MIN_FACE_HEIGHT)):
+            print "size is too small. excluding."
+            continue
+        
+        if APPLY_MASK:## apply mask        
+            if RANDOM_MASKS_FACE:
+                mask = cv2.imread(random.choice(RANDOM_MASKS_FACE))
+            else:
+                mask = cv2.imread(path + ".mask.jpg")
+            __, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+            img &= mask
 
         ## resize image
         h = int(h * BG_IMAGE_SCALE)
         w = int(w * BG_IMAGE_SCALE)
-        img = cv2.resize(img, (h,w), interpolation = cv2.INTER_AREA)
+        img = cv2.resize(img, (w,h), interpolation = cv2.INTER_AREA)
 
         ## find a random place to put the image in the background
         h_offset, h_limit, h_crop = set_segment(h, BG_HEIGHT)
