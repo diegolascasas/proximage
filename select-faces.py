@@ -120,8 +120,10 @@ for line in iter(sys.stdin.readline, ''):
             continue
         
         if APPLY_MASK:## apply mask        
-            if RANDOM_MASKS_FACE:
+            if RANDOM_MASKS_FACE and "face" in path:
                 mask = cv2.imread(random.choice(RANDOM_MASKS_FACE))
+            elif RANDOM_MASKS_BODY and "body" in path:
+                mask = cv2.imread(random.choice(RANDOM_MASKS_BODY))
             else:
                 mask = cv2.imread(path + ".mask.jpg")
             __, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
