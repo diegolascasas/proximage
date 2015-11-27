@@ -45,7 +45,7 @@ def set_segment(img_size, max_value):
     limit  = offset + img_size
     crop   = img_size
     if limit > max_value:
-        limit = max_value 
+        limit = max_value
         crop  = limit - offset
     return offset, limit, crop
 
@@ -66,7 +66,7 @@ if bg_image is None:
 else:
     bg_image = cv2.resize(bg_image, (BG_WIDTH,BG_HEIGHT),
                           interpolation = cv2.INTER_AREA)
-    
+
 ## check the current number of "special images" in the directory
 special_images = len(glob.glob('special/*.jpg'))
 
@@ -95,7 +95,7 @@ for line in iter(sys.stdin.readline, ''):
     if img is None:
         print "could not read image", path
         continue
-    
+
     if (special_buffer < SPECIAL_FACE_BUFFER_SIZE and
         "face" in path and
         w >= MIN_FACE_WIDTH and h >= MIN_FACE_HEIGHT):
@@ -110,16 +110,18 @@ for line in iter(sys.stdin.readline, ''):
         special_images += 1
         special_buffer += 1
         last_time_checked = time()
-        ## Tell app if 13 new images were obtained
-        if special_images % 13 == 0:
+
+        ## Tell app if new images were obtained
+        ## TODO: make this less complicated
+        if special_images % SPECIAL_FACE_BUFFER_SIZE == 0:
             send_message(1)
     else:
-        if (FILTER_EXCLUDE and 
+        if (FILTER_EXCLUDE and
             (w < MIN_FACE_WIDTH or h < MIN_FACE_HEIGHT)):
             print "size is too small. excluding."
             continue
-        
-        if APPLY_MASK:## apply mask        
+
+        if APPLY_MASK:## apply mask
             if RANDOM_MASKS_FACE and "face" in path:
                 mask = cv2.imread(random.choice(RANDOM_MASKS_FACE))
             elif RANDOM_MASKS_BODY and "body" in path:
