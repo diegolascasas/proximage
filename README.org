@@ -1,0 +1,16 @@
+
+* P R O X I M A G E
+
+Just run capture-detect.py to extract all the faces detected with the camera with landmark extraction and extra padding.
+
+** Notes
+- This is not the whole system, only the face detection part. The rest is implemented in MAX.
+- An earlier version of this project was presented in ESCALATRONICA 2015, Buenos Aires.
+
+** Instalation
+- Depends on:
+  - OpenCV 2.4
+  - Dlib 18.8
+  - Python packages: numpy and skimage
+- Create a directory ~entities/~ to store the data, or change this in the ~capture-detect.py~ script
+- Create a ~data/~ directory and put the ~shape_predictor_68_face_landmarks.dat~ data file from dlib there
